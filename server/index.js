@@ -6,6 +6,7 @@ dotenv.config();
 
 const supabase = require("./config/supabase");
 const scoreRoutes = require("./routes/scoreRoutes");
+const drawRoutes = require("./routes/drawRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,6 +38,7 @@ app.get("/test-db", async (req, res) => {
 });
 
 app.use("/api", scoreRoutes);
+app.use("/api", drawRoutes);
 
 // Handle invalid JSON payloads safely
 app.use((err, req, res, next) => {
