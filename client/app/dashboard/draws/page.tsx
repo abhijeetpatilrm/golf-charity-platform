@@ -56,12 +56,12 @@ export default function DrawsPage() {
 
     try {
       setRunningDraw(true);
-      const response = await runDraw(drawType);
+      const response = await runDraw({ drawType, mode: drawMode });
 
       setGeneratedNumbers(response.drawNumbers);
       setDraws((prev) => [response.draw, ...prev]);
       setSuccess(
-        `Draw generated successfully for ${drawType}-number match. Winners: ${response.totalWinners}`,
+        `Draw published (${drawMode}) for ${drawType}-number match. Winners: ${response.totalWinners}`,
       );
     } catch (runError) {
       const message =
