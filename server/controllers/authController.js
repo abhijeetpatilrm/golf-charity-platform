@@ -1,4 +1,9 @@
 const supabase = require("../config/supabase");
+const env = require("../config/env");
+
+const canUseDevAuthBypass = () => {
+  return process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
+};
 
 const signUp = async (req, res) => {
   try {
@@ -86,6 +91,22 @@ const signIn = async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ error: "email and password are required" });
+    }
+
+    if (
+      canUseDevAuthBypass() &&
+      env.DEV_USER_EMAIL &&
+      email.trim().toLowerCase() === env.DEV_USER_EMAIL.trim().toLowerCase()
+    ) {
+      return res.status(200).json({
+        message: "Login successful",
+        user: {
+          id: env.DEV_USER_ID || "00000000-0000-0000-0000-000000000001",
+          email: env.DEV_USER_EMAIL,
+          role: (env.DEV_USER_ROLE || "admin").toLowerCase(),
+        },
+        session: null,
+      });
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
