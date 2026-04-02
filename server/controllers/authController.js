@@ -5,6 +5,20 @@ const canUseDevAuthBypass = () => {
   return process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
 };
 
+const createDevSession = ({ id, email, role, name }) => {
+  const payload = {
+    id,
+    email,
+    role: (role || "subscriber").toLowerCase(),
+    name: name || null,
+  };
+
+  return {
+    access_token: `dev.${Buffer.from(JSON.stringify(payload)).toString("base64url")}`,
+    refresh_token: null,
+  };
+};
+
 const syncDevUserRecord = async ({ id, email, role, name, charityId, contributionPercent }) => {
   const now = new Date().toISOString();
 
@@ -68,9 +82,16 @@ const signUp = async (req, res) => {
         id: accountId,
         email,
         role: isDevAdmin ? env.DEV_USER_ROLE || "admin" : (role || "subscriber"),
-        name: name || "Dev Admin",
+        name: name || (isDevAdmin ? "Dev Admin" : "Dev User"),
         charityId,
         contributionPercent,
+      });
+
+      const session = createDevSession({
+        id: accountId,
+        email,
+        role: isDevAdmin ? env.DEV_USER_ROLE || "admin" : (role || "subscriber"),
+        name: name || (isDevAdmin ? "Dev Admin" : "Dev User"),
       });
 
       return res.status(201).json({
@@ -80,7 +101,7 @@ const signUp = async (req, res) => {
           email,
           role: (isDevAdmin ? env.DEV_USER_ROLE || "admin" : (role || "subscriber")).toLowerCase(),
         },
-        session: null,
+        session,
       });
     }
 
@@ -162,6 +183,13 @@ const signIn = async (req, res) => {
       env.DEV_USER_EMAIL &&
       email.trim().toLowerCase() === env.DEV_USER_EMAIL.trim().toLowerCase()
     ) {
+      const session = createDevSession({
+        id: env.DEV_USER_ID || "00000000-0000-0000-0000-000000000001",
+        email: env.DEV_USER_EMAIL,
+        role: env.DEV_USER_ROLE || "admin",
+        name: "Dev Admin",
+      });
+
       return res.status(200).json({
         message: "Login successful",
         user: {
@@ -169,7 +197,34 @@ const signIn = async (req, res) => {
           email: env.DEV_USER_EMAIL,
           role: (env.DEV_USER_ROLE || "admin").toLowerCase(),
         },
-        session: null,
+        session,
+      });
+    }
+
+    if (canUseDevAuthBypass()) {
+      const accountId = `dev-${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "user"}`;
+      const session = createDevSession({
+        id: accountId,
+        email,
+        role: "subscriber",
+        name: "Dev User",
+      });
+
+      await syncDevUserRecord({
+        id: accountId,
+        email,
+        role: "subscriber",
+        name: "Dev User",
+      });
+
+      return res.status(200).json({
+        message: "Login successful",
+        user: {
+          id: accountId,
+          email,
+          role: "subscriber",
+        },
+        session,
       });
     }
 

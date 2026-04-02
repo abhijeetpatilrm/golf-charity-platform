@@ -13,19 +13,26 @@ const canUseDevBypass = () => {
   return process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
 };
 
-const attachDevUserIfAllowed = (req) => {
-  if (!canUseDevBypass()) {
-    return false;
+const parseDevSessionToken = (token) => {
+  if (!token || !token.startsWith("dev.")) {
+    return null;
   }
 
-  req.user = {
-    id: process.env.DEV_USER_ID || "00000000-0000-0000-0000-000000000001",
-    email: process.env.DEV_USER_EMAIL || "dev-admin@example.com",
-    role: (process.env.DEV_USER_ROLE || "admin").toLowerCase(),
-    name: "Dev Admin",
-  };
+  try {
+    const payload = JSON.parse(Buffer.from(token.slice(4), "base64url").toString("utf8"));
+    if (!payload?.id || !payload?.email) {
+      return null;
+    }
 
-  return true;
+    return {
+      id: payload.id,
+      email: payload.email,
+      role: String(payload.role || "subscriber").toLowerCase(),
+      name: payload.name || null,
+    };
+  } catch {
+    return null;
+  }
 };
 
 const syncUserRecord = async (user) => {
@@ -58,10 +65,13 @@ const attachUserContext = async (req, res, next) => {
     const token = getBearerToken(req.headers.authorization || "");
 
     if (!token) {
-      if (attachDevUserIfAllowed(req)) {
-        await syncUserRecord(req.user);
-      }
+      return next();
+    }
 
+    const devSessionUser = canUseDevBypass() ? parseDevSessionToken(token) : null;
+    if (devSessionUser) {
+      req.user = devSessionUser;
+      await syncUserRecord(req.user);
       return next();
     }
 
@@ -88,10 +98,6 @@ const attachUserContext = async (req, res, next) => {
 };
 
 const requireAuth = (req, res, next) => {
-  if (!req.user?.id && attachDevUserIfAllowed(req)) {
-    return next();
-  }
-
   if (!req.user?.id) {
     return res.status(401).json({ error: "Authentication required" });
   }
@@ -100,10 +106,6 @@ const requireAuth = (req, res, next) => {
 };
 
 const requireRole = (...roles) => (req, res, next) => {
-  if (!req.user?.id && attachDevUserIfAllowed(req)) {
-    return next();
-  }
-
   if (!req.user?.id) {
     return res.status(401).json({ error: "Authentication required" });
   }
