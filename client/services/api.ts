@@ -641,7 +641,7 @@ export const signIn = async (payload: {
 	}
 };
 
-export const getMe = async (): Promise<{ user: unknown }> => {
+export const getMe = async (): Promise<{ user: AuthUser | null }> => {
 	try {
 		const response = await api.get<{ user: AuthUser | null }>("/auth/me");
 		return response.data;

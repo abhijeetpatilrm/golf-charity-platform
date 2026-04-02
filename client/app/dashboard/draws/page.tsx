@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { CalendarClock, PlayCircle, Sparkles, Ticket } from "lucide-react";
@@ -56,12 +56,12 @@ export default function DrawsPage() {
 
     try {
       setRunningDraw(true);
-      const response = await runDraw({ drawType, mode: drawMode });
+      const response = await runDraw({ drawType, mode: "random" });
 
       setGeneratedNumbers(response.drawNumbers);
       setDraws((prev) => [response.draw, ...prev]);
       setSuccess(
-        `Draw published (${drawMode}) for ${drawType}-number match. Winners: ${response.totalWinners}`,
+        `Draw published (random) for ${drawType}-number match. Winners: ${response.totalWinners}`,
       );
     } catch (runError) {
       const message =
