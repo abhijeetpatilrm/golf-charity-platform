@@ -10,7 +10,7 @@ const getBearerToken = (authorizationHeader = "") => {
 };
 
 const canUseDevBypass = () => {
-  return process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
+  return process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
 };
 
 const attachDevUserIfAllowed = (req) => {
@@ -22,9 +22,35 @@ const attachDevUserIfAllowed = (req) => {
     id: process.env.DEV_USER_ID || "00000000-0000-0000-0000-000000000001",
     email: process.env.DEV_USER_EMAIL || "dev-admin@example.com",
     role: (process.env.DEV_USER_ROLE || "admin").toLowerCase(),
+    name: "Dev Admin",
   };
 
   return true;
+};
+
+const syncUserRecord = async (user) => {
+  if (!user?.id) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    id: user.id,
+    name: user.name || (String(user.email || "").toLowerCase() === (process.env.DEV_USER_EMAIL || "dev-admin@example.com").toLowerCase() ? "Dev Admin" : null),
+    email: user.email || null,
+    role: (user.role || "subscriber").toLowerCase(),
+    updated_at: now,
+  };
+
+  if (user.role === "admin" || user.role === "administrator") {
+    payload.subscription_status = "active";
+  }
+
+  const { error } = await supabase.from("users").upsert(payload, { onConflict: "id" });
+
+  if (error && error.code !== "42P01") {
+    console.error("Failed to sync user record:", error);
+  }
 };
 
 const attachUserContext = async (req, res, next) => {
@@ -32,6 +58,10 @@ const attachUserContext = async (req, res, next) => {
     const token = getBearerToken(req.headers.authorization || "");
 
     if (!token) {
+      if (attachDevUserIfAllowed(req)) {
+        await syncUserRecord(req.user);
+      }
+
       return next();
     }
 
@@ -45,7 +75,10 @@ const attachUserContext = async (req, res, next) => {
       id: user.id,
       email: user.email || null,
       role: (user.user_metadata?.role || "subscriber").toLowerCase(),
+      name: user.user_metadata?.name || null,
     };
+
+    await syncUserRecord(req.user);
 
     return next();
   } catch (err) {

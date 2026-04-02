@@ -4,7 +4,7 @@ const getMyCharityPreference = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("user_charity_preferences")
-      .select("id, charity_id, contribution_percent, charities(id, name)")
+      .select("id, charity_id, contribution_percent")
       .eq("user_id", req.user.id)
       .maybeSingle();
 
@@ -26,7 +26,6 @@ const getMyCharityPreference = async (req, res) => {
         id: data.id,
         charity_id: data.charity_id,
         contribution_percent: Number(data.contribution_percent || 10),
-        charity_name: data.charities?.name || null,
       },
     });
   } catch (err) {

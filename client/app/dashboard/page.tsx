@@ -81,9 +81,8 @@ export default function DashboardPage() {
       try {
         setDashboardLoading(true);
         setError("");
-
-        const [scoresResponse, subscriptionResponse, drawsResponse, winningsResponse, charitiesResponse, preferenceResponse] =
-          await Promise.all([
+        const [scoresResult, subscriptionResult, drawsResult, winningsResult, charitiesResult, preferenceResult] =
+          await Promise.allSettled([
             getScores(),
             getMySubscription(),
             getDraws(),
@@ -92,29 +91,50 @@ export default function DashboardPage() {
             getMyCharityPreference(),
           ]);
 
-        setScores(scoresResponse.scores ?? []);
-        setDraws((drawsResponse.draws ?? []).slice(0, 4));
-        setWinnings(winningsResponse.winnings ?? []);
-        setWinningsSummary(winningsResponse.summary || { totalWinnings: 0, paidTotal: 0, pendingCount: 0 });
-        setCharities((charitiesResponse.charities ?? []).filter((item) => item.is_active !== false));
-
-        const subscription = subscriptionResponse.subscription as
-          | { status?: string; plan?: string }
-          | null;
-        setSubscriptionStatus(subscription?.status || "inactive");
-        setSubscriptionPlan(subscription?.plan || "none");
-
-        const preference = preferenceResponse.preference;
-        if (preference) {
-          setSelectedCharityId(preference.charity_id);
-          setContributionPercent(String(preference.contribution_percent || 10));
+        if (scoresResult.status === "fulfilled") {
+          setScores(scoresResult.value.scores ?? []);
         }
-      } catch (loadError) {
-        const message =
-          loadError instanceof Error
-            ? loadError.message
-            : "Failed to load dashboard data. Please refresh.";
-        setError(message);
+
+        if (subscriptionResult.status === "fulfilled") {
+          const subscription = subscriptionResult.value.subscription as
+            | { status?: string; plan?: string }
+            | null;
+          setSubscriptionStatus(subscription?.status || "inactive");
+          setSubscriptionPlan(subscription?.plan || "none");
+        }
+
+        if (drawsResult.status === "fulfilled") {
+          setDraws((drawsResult.value.draws ?? []).slice(0, 4));
+        }
+
+        if (winningsResult.status === "fulfilled") {
+          setWinnings(winningsResult.value.winnings ?? []);
+          setWinningsSummary(winningsResult.value.summary || { totalWinnings: 0, paidTotal: 0, pendingCount: 0 });
+        }
+
+        if (charitiesResult.status === "fulfilled") {
+          setCharities((charitiesResult.value.charities ?? []).filter((item) => item.is_active !== false));
+        }
+
+        if (preferenceResult.status === "fulfilled") {
+          const preference = preferenceResult.value.preference;
+          if (preference) {
+            setSelectedCharityId(preference.charity_id);
+            setContributionPercent(String(preference.contribution_percent || 10));
+          }
+        }
+
+        const loadFailure = [scoresResult, subscriptionResult, drawsResult, winningsResult, charitiesResult, preferenceResult].find(
+          (result) => result.status === "rejected",
+        );
+
+        if (loadFailure) {
+          const message =
+            loadFailure.reason instanceof Error
+              ? loadFailure.reason.message
+              : "Failed to load dashboard data. Some sections may be unavailable.";
+          setError(message);
+        }
       } finally {
         setDashboardLoading(false);
       }

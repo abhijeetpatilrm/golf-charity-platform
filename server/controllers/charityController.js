@@ -1,7 +1,59 @@
 const supabase = require("../config/supabaseAdmin");
 
+const DEFAULT_CHARITIES = [
+  {
+    name: "Fairway Youth Foundation",
+    description: "Grassroots youth golf development and mentoring.",
+    website_url: "https://example.org/fairway-youth",
+    is_active: true,
+  },
+  {
+    name: "Green Relief Initiative",
+    description: "Community environmental restoration and clean water projects.",
+    website_url: "https://example.org/green-relief",
+    is_active: true,
+  },
+  {
+    name: "Urban Sports Access",
+    description: "Inclusive sports programs for underserved communities.",
+    website_url: "https://example.org/urban-sports",
+    is_active: true,
+  },
+];
+
+const canSeedDevCharities = () => {
+  return process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
+};
+
+const seedDefaultCharitiesIfNeeded = async () => {
+  if (!canSeedDevCharities()) {
+    return;
+  }
+
+  const { data: existingCharities, error: existingError } = await supabase
+    .from("charities")
+    .select("id")
+    .limit(1);
+
+  if (existingError) {
+    return;
+  }
+
+  if ((existingCharities || []).length > 0) {
+    return;
+  }
+
+  const { error: seedError } = await supabase.from("charities").insert(DEFAULT_CHARITIES);
+
+  if (seedError && seedError.code !== "42P01") {
+    console.error("Failed to seed default charities:", seedError);
+  }
+};
+
 const getCharities = async (req, res) => {
   try {
+    await seedDefaultCharitiesIfNeeded();
+
     const search = String(req.query.search || "").trim().toLowerCase();
     const status = String(req.query.status || "all").toLowerCase();
 

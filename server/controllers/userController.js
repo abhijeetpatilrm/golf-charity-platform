@@ -19,6 +19,7 @@ const getUsers = async (req, res) => {
       id: user.id,
       name: user.name || null,
       email: user.email || null,
+      role: user.role || null,
       subscription_status: user.subscription_status || null,
       created_at: user.created_at || null,
     }));

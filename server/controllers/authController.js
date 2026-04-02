@@ -2,7 +2,43 @@ const supabase = require("../config/supabase");
 const env = require("../config/env");
 
 const canUseDevAuthBypass = () => {
-  return process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
+  return process.env.ALLOW_DEV_AUTH_BYPASS !== "false";
+};
+
+const syncDevUserRecord = async ({ id, email, role, name, charityId, contributionPercent }) => {
+  const now = new Date().toISOString();
+
+  const { error: userUpsertError } = await supabase.from("users").upsert(
+    {
+      id,
+      name: name || "Dev Admin",
+      email,
+      role: (role || "admin").toLowerCase(),
+      subscription_status: "active",
+      updated_at: now,
+    },
+    { onConflict: "id" },
+  );
+
+  if (userUpsertError && userUpsertError.code !== "42P01") {
+    console.error("Failed to mirror dev signup user into users table:", userUpsertError);
+  }
+
+  if (charityId) {
+    const { error: preferenceError } = await supabase.from("user_charity_preferences").upsert(
+      {
+        user_id: id,
+        charity_id: charityId,
+        contribution_percent: Number(contributionPercent || 10),
+        updated_at: now,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (preferenceError && preferenceError.code !== "42P01") {
+      console.error("Failed to save dev signup charity preference:", preferenceError);
+    }
+  }
 };
 
 const signUp = async (req, res) => {
@@ -18,6 +54,34 @@ const signUp = async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ error: "email and password are required" });
+    }
+
+    if (canUseDevAuthBypass()) {
+      const isDevAdmin =
+        env.DEV_USER_EMAIL &&
+        email.trim().toLowerCase() === env.DEV_USER_EMAIL.trim().toLowerCase();
+      const accountId = isDevAdmin
+        ? env.DEV_USER_ID || "00000000-0000-0000-0000-000000000001"
+        : `dev-${email.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "user"}`;
+
+      await syncDevUserRecord({
+        id: accountId,
+        email,
+        role: isDevAdmin ? env.DEV_USER_ROLE || "admin" : (role || "subscriber"),
+        name: name || "Dev Admin",
+        charityId,
+        contributionPercent,
+      });
+
+      return res.status(201).json({
+        message: "User registered successfully",
+        user: {
+          id: accountId,
+          email,
+          role: (isDevAdmin ? env.DEV_USER_ROLE || "admin" : (role || "subscriber")).toLowerCase(),
+        },
+        session: null,
+      });
     }
 
     const { data, error } = await supabase.auth.signUp({

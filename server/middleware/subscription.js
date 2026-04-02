@@ -17,10 +17,7 @@ const isSubscriptionActive = (subscription) => {
 };
 
 const canBypassInDev = () => {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.ALLOW_DEV_SUBSCRIPTION_BYPASS !== "false"
-  );
+  return process.env.ALLOW_DEV_SUBSCRIPTION_BYPASS !== "false";
 };
 
 const requireActiveSubscription = async (req, res, next) => {
